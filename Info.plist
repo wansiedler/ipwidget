@@ -22,6 +22,7 @@
             <key>ip-api.com</key>
             <dict>
                 <key>NSExceptionAllowsInsecureHTTPLoads</key><true/>
+                <key>NSIncludesSubdomains</key><true/>
             </dict>
         </dict>
     </dict>

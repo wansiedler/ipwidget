@@ -14,10 +14,11 @@ rm -rf "./${BUILD:?}"
 mkdir -p "$APP/Contents/MacOS"
 
 swiftc -O -swift-version 5 -target arm64-apple-macos14.0 \
-  -framework AppKit -framework MapKit -framework Network -framework CoreWLAN -framework UserNotifications \
-  main.swift -o "$APP/Contents/MacOS/$APP_NAME"
+  -framework AppKit -framework MapKit -framework Network -framework CoreWLAN -framework UserNotifications -framework Carbon \
+  *.swift -o "$APP/Contents/MacOS/$APP_NAME"
 
 cp Info.plist "$APP/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Add :IPWRepoPath string $(pwd)" "$APP/Contents/Info.plist"
 codesign --force --sign - "$APP"
 
 # Stop running instance / agent

@@ -96,6 +96,21 @@ enum Settings {
     }
 }
 
+// MARK: - Views
+
+/// Root blur view: any left-drag on it moves the window (works even when the window is not key).
+final class RootView: NSVisualEffectView {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    override func mouseDown(with event: NSEvent) { window?.performDrag(with: event) }
+}
+
+/// Transparent overlay on top of the map so drags there move the window instead of being eaten by MKMapView.
+final class DragOverlay: NSView {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    override func mouseDown(with event: NSEvent) { window?.performDrag(with: event) }
+    override func rightMouseDown(with event: NSEvent) { superview?.rightMouseDown(with: event) }
+}
+
 // MARK: - App
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
@@ -143,7 +158,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                          styleMask: [.borderless],
                          backing: .buffered,
                          defer: false)
-        w.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopIconWindow)))
+        // Same level as macOS desktop widgets (Notification Center): above Finder's icon layer, so clicks reach us.
+        w.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopIconWindow)) + 2)
         w.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
         w.isOpaque = false
         w.backgroundColor = .clear
@@ -151,7 +167,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         w.isMovableByWindowBackground = true
         w.isReleasedWhenClosed = false
 
-        let root = NSVisualEffectView(frame: NSRect(origin: .zero, size: size))
+        let root = RootView(frame: NSRect(origin: .zero, size: size))
         root.autoresizingMask = [.width, .height]
         root.material = .hudWindow
         root.blendingMode = .behindWindow
@@ -177,6 +193,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             mapView.preferredConfiguration = MKStandardMapConfiguration(elevationStyle: .flat, emphasisStyle: .muted)
         }
         root.addSubview(mapView)
+
+        let dragOverlay = DragOverlay()
+        dragOverlay.translatesAutoresizingMaskIntoConstraints = false
+        root.addSubview(dragOverlay)
 
         // Labels
         ipLabel.font = .monospacedSystemFont(ofSize: 26, weight: .semibold)
@@ -217,6 +237,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             mapView.leadingAnchor.constraint(equalTo: root.leadingAnchor),
             mapView.trailingAnchor.constraint(equalTo: root.trailingAnchor),
             mapHeightConstraint,
+
+            dragOverlay.topAnchor.constraint(equalTo: mapView.topAnchor),
+            dragOverlay.leadingAnchor.constraint(equalTo: mapView.leadingAnchor),
+            dragOverlay.trailingAnchor.constraint(equalTo: mapView.trailingAnchor),
+            dragOverlay.bottomAnchor.constraint(equalTo: mapView.bottomAnchor),
 
             left.topAnchor.constraint(equalTo: mapView.bottomAnchor, constant: 12),
             left.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 16),

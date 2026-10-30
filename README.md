@@ -64,3 +64,5 @@ launchctl bootout   gui/$(id -u)/com.wansiedler.ipwidget      # stop + disable u
 ```
 
 Uninstall: bootout, then delete `~/Applications/IPWidget.app` and the LaunchAgents plist.
+
+Logs: `~/Library/Logs/IPWidget/` (launchd stderr, rebuild output).

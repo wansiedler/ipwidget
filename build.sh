@@ -20,7 +20,12 @@ swiftc -O -swift-version 5 -target arm64-apple-macos14.0 \
 cp Info.plist "$APP/Contents/Info.plist"
 cp AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 /usr/libexec/PlistBuddy -c "Add :IPWRepoPath string $(pwd)" "$APP/Contents/Info.plist"
-codesign --force --sign - "$APP"
+# Sign with a stable identity when available. Notification Center matches an app to
+# its notification record by code-signing requirement; an ad-hoc signature yields a
+# cdhash requirement that changes on every build, so the banner loses the app icon.
+SIGN_ID="${IPW_SIGN_ID:-$(security find-identity -v -p codesigning 2>/dev/null | awk -F'"' '/Apple Development|Developer ID Application/{print $2; exit}')}"
+codesign --force --options runtime --sign "${SIGN_ID:--}" "$APP"
+echo "signed as: ${SIGN_ID:-ad-hoc}"
 
 # Stop running instance / agent
 launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true

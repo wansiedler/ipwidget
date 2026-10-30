@@ -25,6 +25,7 @@ pinned to the IP geolocation. Sits at desktop-icon window level (below all app w
 | Size | compact (no map, 300 px) / normal (340, map 150) / large (420, map 220) |
 | Map click | opens the location in Apple Maps; drag anywhere (map included) moves the widget |
 | Reverse DNS | PTR hostname of the public IP next to the ISP |
+| Click to copy | every value (IP, place, ISP/host, IPv6, local IP, latency) copies to the clipboard on click; label flashes green |
 - Drag anywhere to move; position is persisted (frame autosave)
 
 ## Build & install

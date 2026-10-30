@@ -163,29 +163,66 @@ enum Settings {
 // MARK: - Views
 
 /// Manual window drag + click detection. Reliable for a borderless, never-key window.
-class DragView: NSView {
-    var onClick: (() -> Void)?
+struct DragTracker {
     private var downAt = NSPoint.zero
     private var startOrigin = NSPoint.zero
-    private var moved = false
+    private(set) var moved = false
 
-    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
-
-    override func mouseDown(with event: NSEvent) {
+    mutating func begin(_ window: NSWindow?) {
         downAt = NSEvent.mouseLocation
         startOrigin = window?.frame.origin ?? .zero
         moved = false
     }
 
-    override func mouseDragged(with event: NSEvent) {
+    mutating func drag(_ window: NSWindow?) {
         let p = NSEvent.mouseLocation
         let dx = p.x - downAt.x, dy = p.y - downAt.y
         if abs(dx) > 2 || abs(dy) > 2 { moved = true }
         window?.setFrameOrigin(NSPoint(x: startOrigin.x + dx, y: startOrigin.y + dy))
     }
 
-    override func mouseUp(with event: NSEvent) {
-        if moved { window?.saveFrame(usingName: "IPWidget") } else { onClick?() }
+    /// Returns true when the gesture was a click (no movement).
+    func end(_ window: NSWindow?) -> Bool {
+        if moved { window?.saveFrame(usingName: "IPWidget") }
+        return !moved
+    }
+}
+
+class DragView: NSView {
+    var onClick: (() -> Void)?
+    private var tracker = DragTracker()
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    override func mouseDown(with event: NSEvent) { tracker.begin(window) }
+    override func mouseDragged(with event: NSEvent) { tracker.drag(window) }
+    override func mouseUp(with event: NSEvent) { if tracker.end(window) { onClick?() } }
+}
+
+/// Label that copies its value to the clipboard on click (drag still moves the window).
+final class CopyLabel: NSTextField {
+    var copyValue: (() -> String?)?
+    private var tracker = DragTracker()
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        addTrackingArea(NSTrackingArea(rect: .zero, options: [.cursorUpdate, .activeAlways, .inVisibleRect], owner: self))
+    }
+    override func cursorUpdate(with event: NSEvent) { NSCursor.pointingHand.set() }
+
+    override func mouseDown(with event: NSEvent) { tracker.begin(window) }
+    override func mouseDragged(with event: NSEvent) { tracker.drag(window) }
+    override func mouseUp(with event: NSEvent) { if tracker.end(window) { copyNow() } }
+
+    private func copyNow() {
+        let value = (copyValue?() ?? stringValue).trimmingCharacters(in: .whitespaces)
+        guard !value.isEmpty, value != "—", !value.hasPrefix("…") else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(value, forType: .string)
+        let original = textColor
+        textColor = .systemGreen
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.textColor = original }
     }
 }
 
@@ -227,13 +264,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var widthConstraint: NSLayoutConstraint!
     private var mapHeightConstraint: NSLayoutConstraint!
 
-    private let ipLabel = NSTextField(labelWithString: "…")
+    private let ipLabel = CopyLabel(labelWithString: "…")
     private let badge = Badge()
-    private let placeLabel = NSTextField(labelWithString: "Определяю IP…")
-    private let ispLabel = NSTextField(labelWithString: "")
-    private let ipv6Label = NSTextField(labelWithString: "")
-    private let localLabel = NSTextField(labelWithString: "")
-    private let pingLabel = NSTextField(labelWithString: "")
+    private let placeLabel = CopyLabel(labelWithString: "Определяю IP…")
+    private let ispLabel = CopyLabel(labelWithString: "")
+    private let ipv6Label = CopyLabel(labelWithString: "")
+    private let localLabel = CopyLabel(labelWithString: "")
+    private let pingLabel = CopyLabel(labelWithString: "")
     private let timeLabel = NSTextField(labelWithString: "")
     private let refreshButton = NSButton()
     private let settingsButton = NSButton()
@@ -246,6 +283,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var lastInfo: IPInfo?
     private var lastHost: String?
     private var lastIPv6: String?
+    private var lastLocalIP: String?
     private var isRefreshing = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -318,6 +356,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         style(pingLabel, size: 10, weight: .semibold, color: .tertiaryLabelColor, mono: true)
         style(timeLabel, size: 10, weight: .regular, color: .tertiaryLabelColor)
         timeLabel.alignment = .right
+
+        // Click-to-copy values
+        ipLabel.copyValue = { [weak self] in self?.lastInfo?.ip }
+        placeLabel.copyValue = { [weak self] in self?.lastInfo?.place }
+        ipv6Label.copyValue = { [weak self] in self?.lastIPv6 }
+        localLabel.copyValue = { [weak self] in self?.lastLocalIP }
+        for l in [ipLabel, placeLabel, ispLabel, ipv6Label, localLabel, pingLabel] { l.toolTip = "Клик — скопировать" }
 
         configure(button: refreshButton, symbol: "arrow.clockwise", tip: "Обновить IP", action: #selector(refreshNow))
         configure(button: settingsButton, symbol: "gearshape", tip: "Настройки", action: #selector(showSettings(_:)))
@@ -753,7 +798,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             kind += " " + ssid        // nil without Location permission on macOS 14+
         }
         var parts = [kind]
-        if let ip = ipv4Address(of: iface.name) { parts.append(ip) }
+        lastLocalIP = ipv4Address(of: iface.name)
+        if let ip = lastLocalIP { parts.append(ip) }
         return parts.joined(separator: " · ")
     }
 

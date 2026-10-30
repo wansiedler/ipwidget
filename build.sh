@@ -6,7 +6,11 @@ cd "$(dirname "$0")"
 APP_NAME=IPWidget
 BUILD=build
 APP="$BUILD/$APP_NAME.app"
-INSTALL_DIR="$HOME/Applications"
+# Install to /Applications: Notification Center and the Notifications settings pane are
+# sandboxed and cannot read app bundles under $HOME, so the icon shows as a placeholder
+# there. Falls back to ~/Applications when /Applications is not writable.
+INSTALL_DIR="${IPW_INSTALL_DIR:-/Applications}"
+[ -w "$INSTALL_DIR" ] || INSTALL_DIR="$HOME/Applications"
 LABEL=com.wansiedler.ipwidget
 AGENT="$HOME/Library/LaunchAgents/$LABEL.plist"
 
@@ -19,6 +23,15 @@ swiftc -O -swift-version 5 -target arm64-apple-macos14.0 \
 
 cp Info.plist "$APP/Contents/Info.plist"
 cp AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+# Also compile the asset catalog (Assets.car + CFBundleIconName): on macOS 26+ the
+# notification UI and System Settings resolve app icons through IconServices, which
+# prefers the asset-catalog icon.
+if command -v xcrun >/dev/null && xcrun --find actool >/dev/null 2>&1; then
+  xcrun actool Assets.xcassets --compile "$APP/Contents/Resources" --platform macosx \
+    --minimum-deployment-target 14.0 --app-icon AppIcon \
+    --output-partial-info-plist "$BUILD/actool.plist" >/dev/null 2>&1 \
+    && /usr/libexec/PlistBuddy -c "Add :CFBundleIconName string AppIcon" "$APP/Contents/Info.plist"
+fi
 /usr/libexec/PlistBuddy -c "Add :IPWRepoPath string $(pwd)" "$APP/Contents/Info.plist"
 # Sign with a stable identity when available. Notification Center matches an app to
 # its notification record by code-signing requirement; an ad-hoc signature yields a
@@ -34,7 +47,7 @@ pkill -x "$APP_NAME" 2>/dev/null || true
 mkdir -p "$INSTALL_DIR" "$HOME/Library/LaunchAgents" "$HOME/Library/Logs/IPWidget"
 rm -rf "${INSTALL_DIR:?}/${APP_NAME:?}.app"
 cp -R "$APP" "$INSTALL_DIR/"
-cp "$LABEL.plist" "$AGENT"
+sed "s|__APP_PATH__|$INSTALL_DIR/$APP_NAME.app|g" "$LABEL.plist" > "$AGENT"
 # Keep a single LaunchServices registration for the bundle id: Notification Center
 # resolves the app icon by bundle id and may pick a stale copy otherwise.
 LSREG=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister

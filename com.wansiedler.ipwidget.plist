@@ -5,7 +5,7 @@
     <key>Label</key><string>com.wansiedler.ipwidget</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/me/Applications/IPWidget.app/Contents/MacOS/IPWidget</string>
+        <string>__APP_PATH__/Contents/MacOS/IPWidget</string>
     </array>
     <key>RunAtLoad</key><true/>
     <key>KeepAlive</key>

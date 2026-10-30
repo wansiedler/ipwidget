@@ -14,7 +14,7 @@ rm -rf "./${BUILD:?}"
 mkdir -p "$APP/Contents/MacOS"
 
 swiftc -O -swift-version 5 -target arm64-apple-macos14.0 \
-  -framework AppKit -framework MapKit -framework Network \
+  -framework AppKit -framework MapKit -framework Network -framework CoreWLAN -framework UserNotifications \
   main.swift -o "$APP/Contents/MacOS/$APP_NAME"
 
 cp Info.plist "$APP/Contents/Info.plist"

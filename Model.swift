@@ -202,6 +202,15 @@ enum Settings {
     static var material: Int { get { Int(double("material", 0)) } set { d.set(newValue, forKey: "material") } }
     static var forceDark: Bool { get { bool("forceDark", false) } set { d.set(newValue, forKey: "forceDark") } }
     static var notify: Bool { get { bool("notify", true) } set { d.set(newValue, forKey: "notify") } }
+    /// System sound played when the IP changes; empty string = off. Default "Glass".
+    static var changeSound: String {
+        get { d.object(forKey: "changeSound") as? String ?? "Glass" }
+        set { d.set(newValue, forKey: "changeSound") }
+    }
+    static var systemSounds: [String] {
+        ((try? FileManager.default.contentsOfDirectory(atPath: "/System/Library/Sounds")) ?? [])
+            .filter { $0.hasSuffix(".aiff") }.map { String($0.dropLast(5)) }.sorted()
+    }
     static var menuBar: MenuBarStyle {
         get { MenuBarStyle(rawValue: Int(double("menuBar", 0))) ?? .ipFlag }
         set { d.set(newValue.rawValue, forKey: "menuBar") }
@@ -441,6 +450,7 @@ final class WidgetModel {
         }
         if changedIP, let old {
             lastChangeAt = Date()
+            playChangeSound()
             notifyChange(old: old, new: new)
             DispatchQueue.main.asyncAfter(deadline: .now() + 61) { [weak self] in self?.changed() }
         }
@@ -737,6 +747,19 @@ final class WidgetModel {
     private func shellQuote(_ s: String) -> String { "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'" }
     #endif
 
+    // MARK: Sound
+
+    private var sound: NSSound?
+
+    /// Plays the configured system sound (independent of notification settings).
+    func playChangeSound(_ name: String? = nil) {
+        let n = name ?? Settings.changeSound
+        guard !n.isEmpty, let s = NSSound(named: NSSound.Name(n)) else { return }
+        sound?.stop()
+        sound = s
+        s.play()
+    }
+
     // MARK: Notifications
 
     func requestNotificationAuth() {
@@ -754,7 +777,7 @@ final class WidgetModel {
         c.title = "IP изменился"
         let shown: (String) -> String = { Settings.maskIP ? maskIP($0) : $0 }
         c.body = "\(shown(old.ip)) → \(shown(new.ip))\n\(new.flag) \(new.place) · \(new.isp ?? "")"
-        c.sound = .default
+        c.sound = Settings.changeSound.isEmpty ? .default : nil // own sound already played
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: UUID().uuidString, content: c, trigger: nil)) { err in
             if let err { NSLog("notification failed: \(err.localizedDescription)") }
         }
@@ -773,7 +796,8 @@ final class WidgetModel {
                 let c = UNMutableNotificationContent()
                 c.title = "IP Widget"
                 c.body = "Уведомления работают. Текущий IP: \(self.ipText)"
-                c.sound = .default
+                c.sound = Settings.changeSound.isEmpty ? .default : nil
+                self.playChangeSound()
                 center.add(UNNotificationRequest(identifier: "test", content: c, trigger: nil)) { err in
                     if let err { NSLog("test notification failed: \(err.localizedDescription)") }
                 }

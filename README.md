@@ -20,6 +20,7 @@ pinned to the IP geolocation. Sits at desktop-icon window level (below all app w
 | IPv6 | via `api6.ipify.org`; "IPv6 —" when there is no v6 connectivity |
 | IP history | last 10 addresses with ISP and time in the ⚙ menu; click copies the IP |
 | Notification | macOS notification "IP изменился: old → new" (toggle in menu) |
+| Change sound | system sound (Glass by default, any of /System/Library/Sounds or off) played via NSSound on IP change, independent of notification settings; picking a sound in "Звук при смене IP" previews it |
 | Local network | active interface (Wi‑Fi / Ethernet / utunN for VPN), SSID when Location permission allows, local IPv4 |
 | Latency | TCP connect time to 1.1.1.1:443, green < 50 ms, orange < 150 ms, red above |
 | Appearance | blur material (HUD / Popover / Sidebar / Titlebar), force dark theme |

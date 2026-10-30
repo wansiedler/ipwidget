@@ -68,6 +68,9 @@ final class MenuController: NSObject, NSMenuDelegate {
         menu.addItem(item("На всех экранах", #selector(toggleAllScreens), on: Settings.allScreens))
         menu.addItem(item("Хоткей ⌃⌥I — показать и скопировать IP", #selector(toggleHotkey), on: Settings.hotkey))
         menu.addItem(item("Уведомлять о смене IP", #selector(toggleNotify), on: Settings.notify))
+        var sounds = [item("Без звука", #selector(pickSound), on: Settings.changeSound.isEmpty, rep: ""), .separator()]
+        sounds += Settings.systemSounds.map { item($0, #selector(pickSound), on: Settings.changeSound == $0, rep: $0) }
+        menu.addItem(submenu("Звук при смене IP", sounds))
         menu.addItem(item("Тестовое уведомление", #selector(testNotification)))
 
         menu.addItem(.separator())
@@ -168,6 +171,11 @@ final class MenuController: NSObject, NSMenuDelegate {
         if Settings.notify { model.requestNotificationAuth() }
     }
     @objc private func testNotification() { model.testNotification() }
+    @objc private func pickSound(_ s: NSMenuItem) {
+        let name = s.representedObject as? String ?? ""
+        Settings.changeSound = name
+        model.playChangeSound(name) // preview
+    }
 
     @objc private func togglePingTarget(_ s: NSMenuItem) {
         guard let t = s.representedObject as? String else { return }

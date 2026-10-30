@@ -256,7 +256,7 @@ final class Badge: NSView {
 
 // MARK: - App
 
-final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotificationCenterDelegate {
     private var window: NSWindow!
     private var root: DragView!
     private let blur = NSVisualEffectView()
@@ -292,6 +292,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         settingsMenu.delegate = self
         root.menu = settingsMenu
         applySettings()
+        UNUserNotificationCenter.current().delegate = self
         if Settings.notify { requestNotificationAuth() }
 
         monitor.pathUpdateHandler = { [weak self] path in
@@ -535,6 +536,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             item(f.title, #selector(toggleFlag(_:)), on: Settings.flag(f.key), rep: f.key)
         }))
         menu.addItem(item("Уведомлять о смене IP", #selector(toggleNotify), on: Settings.notify))
+        menu.addItem(item("Тестовое уведомление", #selector(testNotification)))
 
         menu.addItem(.separator())
 
@@ -822,7 +824,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // MARK: Notifications
 
     private func requestNotificationAuth() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+        let center = UNUserNotificationCenter.current()
+        center.requestAuthorization(options: [.alert, .sound]) { granted, error in
+            center.getNotificationSettings { st in
+                NSLog("notifications: granted=\(granted) status=\(st.authorizationStatus.rawValue) alert=\(st.alertSetting.rawValue) error=\(error?.localizedDescription ?? "-")")
+            }
+        }
+    }
+
+    /// Show banners even if the widget process is frontmost.
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                willPresent notification: UNNotification,
+                                withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        completionHandler([.banner, .sound, .list])
+    }
+
+    @objc private func testNotification() {
+        let center = UNUserNotificationCenter.current()
+        center.getNotificationSettings { [weak self] st in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if st.authorizationStatus == .denied {
+                    // Open the system pane; the user has to re-enable it there.
+                    NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension")!)
+                    return
+                }
+                if st.authorizationStatus == .notDetermined { self.requestNotificationAuth() }
+                let c = UNMutableNotificationContent()
+                c.title = "IP Widget"
+                c.body = "Уведомления работают. Текущий IP: \(self.lastInfo?.ip ?? "—")"
+                c.sound = .default
+                center.add(UNNotificationRequest(identifier: "test", content: c, trigger: nil)) { err in
+                    if let err { NSLog("test notification failed: \(err.localizedDescription)") }
+                }
+            }
+        }
     }
 
     private func notifyChange(old: IPInfo, new: IPInfo) {
@@ -831,7 +867,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         c.title = "IP изменился"
         c.body = "\(old.ip) → \(new.ip)\n\(new.flag) \(new.place) · \(new.isp ?? "")"
         c.sound = .default
-        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: UUID().uuidString, content: c, trigger: nil))
+        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: UUID().uuidString, content: c, trigger: nil)) { err in
+            if let err { NSLog("notification failed: \(err.localizedDescription)") }
+        }
     }
 
     // MARK: Visual feedback

@@ -28,6 +28,8 @@ mkdir -p "$INSTALL_DIR" "$HOME/Library/LaunchAgents"
 rm -rf "${INSTALL_DIR:?}/${APP_NAME:?}.app"
 cp -R "$APP" "$INSTALL_DIR/"
 cp "$LABEL.plist" "$AGENT"
+# Register the bundle with LaunchServices so notifications/attribution work
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$INSTALL_DIR/$APP_NAME.app"
 
 launchctl bootstrap "gui/$(id -u)" "$AGENT"
 echo "installed: $INSTALL_DIR/$APP_NAME.app"

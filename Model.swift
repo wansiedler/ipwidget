@@ -413,7 +413,7 @@ final class WidgetModel {
         info = new
 
         if old == nil || changedIP {
-            if Settings.history.last?.ip != new.ip {
+            if Settings.history.last?.ip != new.ip, isValidIP(new.ip) {
                 Settings.history = Settings.history + [HistoryEntry(ip: new.ip, isp: new.isp ?? "", date: Date())]
             }
             host = nil
@@ -425,6 +425,11 @@ final class WidgetModel {
             DispatchQueue.main.asyncAfter(deadline: .now() + 61) { [weak self] in self?.changed() }
         }
         changed()
+    }
+
+    private func isValidIP(_ s: String) -> Bool {
+        var v4 = in_addr(), v6 = in6_addr()
+        return inet_pton(AF_INET, s, &v4) == 1 || inet_pton(AF_INET6, s, &v6) == 1
     }
 
     private func fetchPrimary(_ done: @escaping (IPInfo?) -> Void) {
@@ -682,8 +687,7 @@ final class WidgetModel {
         let df = ISO8601DateFormatter()
         var csv = "date,ip,isp\n"
         for e in Settings.history {
-            let isp = e.isp.replacingOccurrences(of: "\"", with: "\"\"")
-            csv += "\(df.string(from: e.date)),\(e.ip),\"\(isp)\"\n"
+            csv += [df.string(from: e.date), e.ip, e.isp].map(csvField).joined(separator: ",") + "\n"
         }
         let name = DateFormatter()
         name.dateFormat = "yyyyMMdd-HHmmss"
@@ -706,8 +710,18 @@ final class WidgetModel {
         let script = "cd \(shellQuote(repo)) && { git remote | grep -q . && git pull --ff-only || true; } && ./build.sh"
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        p.arguments = ["-c", "nohup /bin/zsh -lc \(shellQuote(script)) >/tmp/ipwidget-update.log 2>&1 &"]
+        let logDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/IPWidget")
+        try? FileManager.default.createDirectory(at: logDir, withIntermediateDirectories: true)
+        let log = logDir.appendingPathComponent("update.log").path
+        p.arguments = ["-c", "nohup /bin/zsh -lc \(shellQuote(script)) >\(shellQuote(log)) 2>&1 &"]
         return (try? p.run()) != nil
+    }
+
+    /// Quote a CSV field; ISP names come from a third-party API, so defuse spreadsheet formula prefixes too.
+    private func csvField(_ v: String) -> String {
+        var f = v.replacingOccurrences(of: "\"", with: "\"\"")
+        if let c = f.first, "=+-@\t\r".contains(c) { f = "'" + f }
+        return "\"" + f + "\""
     }
 
     private func shellQuote(_ s: String) -> String { "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'" }
@@ -727,7 +741,8 @@ final class WidgetModel {
         guard Settings.notify else { return }
         let c = UNMutableNotificationContent()
         c.title = "IP изменился"
-        c.body = "\(old.ip) → \(new.ip)\n\(new.flag) \(new.place) · \(new.isp ?? "")"
+        let shown: (String) -> String = { Settings.maskIP ? maskIP($0) : $0 }
+        c.body = "\(shown(old.ip)) → \(shown(new.ip))\n\(new.flag) \(new.place) · \(new.isp ?? "")"
         c.sound = .default
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: UUID().uuidString, content: c, trigger: nil)) { err in
             if let err { NSLog("notification failed: \(err.localizedDescription)") }
@@ -746,7 +761,7 @@ final class WidgetModel {
                 if st.authorizationStatus == .notDetermined { self.requestNotificationAuth() }
                 let c = UNMutableNotificationContent()
                 c.title = "IP Widget"
-                c.body = "Уведомления работают. Текущий IP: \(self.info?.ip ?? "—")"
+                c.body = "Уведомления работают. Текущий IP: \(self.ipText)"
                 c.sound = .default
                 center.add(UNNotificationRequest(identifier: "test", content: c, trigger: nil)) { err in
                     if let err { NSLog("test notification failed: \(err.localizedDescription)") }

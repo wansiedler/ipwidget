@@ -487,7 +487,7 @@ final class WidgetWindow {
 
     private func openInMaps() {
         guard let c = model.info?.coordinate else { return }
-        if let url = URL(string: "maps://?ll=\(c.latitude),\(c.longitude)&q=\(model.info?.ip ?? "IP")") {
+        if let url = URL(string: "maps://?ll=\(c.latitude),\(c.longitude)&q=IP%20Widget") {
             NSWorkspace.shared.open(url)
         }
     }

@@ -25,7 +25,7 @@ codesign --force --sign - "$APP"
 launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
 pkill -x "$APP_NAME" 2>/dev/null || true
 
-mkdir -p "$INSTALL_DIR" "$HOME/Library/LaunchAgents"
+mkdir -p "$INSTALL_DIR" "$HOME/Library/LaunchAgents" "$HOME/Library/Logs/IPWidget"
 rm -rf "${INSTALL_DIR:?}/${APP_NAME:?}.app"
 cp -R "$APP" "$INSTALL_DIR/"
 cp "$LABEL.plist" "$AGENT"

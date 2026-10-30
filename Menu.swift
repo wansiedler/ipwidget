@@ -83,7 +83,7 @@ final class MenuController: NSObject, NSMenuDelegate {
 
         let df = DateFormatter(); df.dateFormat = "dd.MM HH:mm"
         var hist = Settings.history.suffix(10).reversed().map { e in
-            item("\(df.string(from: e.date))  \(e.ip)  ·  \(e.isp)", #selector(copyFromHistory(_:)), rep: e.ip)
+            item("\(df.string(from: e.date))  \(Settings.maskIP ? maskIP(e.ip) : e.ip)  ·  \(e.isp)", #selector(copyFromHistory(_:)), rep: e.ip)
         }
         if hist.isEmpty { let e = item("Пусто", nil); e.isEnabled = false; hist = [e] }
         hist.append(.separator())
@@ -205,7 +205,7 @@ final class MenuController: NSObject, NSMenuDelegate {
 
     @objc private func openInMaps() {
         guard let c = model.info?.coordinate else { return }
-        if let url = URL(string: "maps://?ll=\(c.latitude),\(c.longitude)&q=\(model.info?.ip ?? "IP")") {
+        if let url = URL(string: "maps://?ll=\(c.latitude),\(c.longitude)&q=IP%20Widget") {
             NSWorkspace.shared.open(url)
         }
     }

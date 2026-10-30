@@ -1,4 +1,5 @@
 import AppKit
+import ServiceManagement
 
 /// Builds the settings menu (gear button, right-click, menu bar item) and applies the choices.
 final class MenuController: NSObject, NSMenuDelegate {
@@ -99,10 +100,16 @@ final class MenuController: NSObject, NSMenuDelegate {
         speed.isEnabled = !model.speedTestRunning
         menu.addItem(speed)
         menu.addItem(.separator())
+        #if APPSTORE
+        let login = item("Запускать при входе", #selector(toggleLoginItem), on: SMAppService.mainApp.status == .enabled)
+        menu.addItem(login)
+        #else
         let rebuild = item("Пересобрать из исходников", #selector(rebuild))
         rebuild.isEnabled = Settings.repoPath != nil
         rebuild.toolTip = Settings.repoPath
         menu.addItem(rebuild)
+        #endif
+        menu.addItem(item("О программе", #selector(about)))
         menu.addItem(item("Выйти", #selector(quit), key: "q"))
     }
 
@@ -151,6 +158,7 @@ final class MenuController: NSObject, NSMenuDelegate {
     @objc private func toggleFlag(_ s: NSMenuItem) {
         guard let key = s.representedObject as? String else { return }
         Settings.toggle(key)
+        if key == "showSSID", Settings.flag(key) { model.requestLocationForSSID() }
         changed()
         if ["showIPv6", "showHost", "showPing", "showDNS"].contains(key) { model.refresh() }
     }
@@ -207,6 +215,26 @@ final class MenuController: NSObject, NSMenuDelegate {
         guard let c = model.info?.coordinate else { return }
         if let url = URL(string: "maps://?ll=\(c.latitude),\(c.longitude)&q=IP%20Widget") {
             NSWorkspace.shared.open(url)
+        }
+    }
+
+    @objc private func about() {
+        NSApp.activate(ignoringOtherApps: true)
+        let credits = NSAttributedString(string: """
+        Внешний IP, геолокация, VPN и DNS-утечки, пинг и скорость — на рабочем столе и в строке меню.
+
+        Данные: ipwho.is, ipinfo.io, ip-api.com (DNS), ipify.org (IPv6), Cloudflare (тест скорости).
+        IP-адрес отправляется этим сервисам для определения геолокации; ничего не сохраняется на сервере разработчика.
+        """, attributes: [.font: NSFont.systemFont(ofSize: 11)])
+        NSApp.orderFrontStandardAboutPanel(options: [.credits: credits, .applicationName: "IP Widget"])
+    }
+
+    @objc private func toggleLoginItem() {
+        let svc = SMAppService.mainApp
+        do {
+            if svc.status == .enabled { try svc.unregister() } else { try svc.register() }
+        } catch {
+            NSLog("login item: \(error.localizedDescription)")
         }
     }
 

@@ -1,0 +1,38 @@
+name: IPWidget
+options:
+  bundleIdPrefix: com.wansiedler
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    DEVELOPMENT_TEAM: "AR4T8G5N3D"
+    CODE_SIGN_STYLE: Automatic
+targets:
+  IPWidget:
+    type: application
+    platform: macOS
+    sources:
+      - Model.swift
+      - Views.swift
+      - Menu.swift
+      - SystemConfig.swift
+      - main.swift
+      - Assets.xcassets
+      - PrivacyInfo.xcprivacy
+    settings:
+      base:
+        PRODUCT_NAME: IPWidget
+        PRODUCT_BUNDLE_IDENTIFIER: com.wansiedler.ipwidget
+        INFOPLIST_FILE: Info.plist
+        GENERATE_INFOPLIST_FILE: "NO"
+        CODE_SIGN_ENTITLEMENTS: IPWidget.entitlements
+        ENABLE_APP_SANDBOX: "YES"
+        ENABLE_HARDENED_RUNTIME: "YES"
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: APPSTORE
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        COMBINE_HIDPI_IMAGES: "YES"
+        SWIFT_STRICT_CONCURRENCY: minimal

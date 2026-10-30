@@ -73,6 +73,25 @@ struct IPInfoIOResponse: Decodable {
     }
 }
 
+/// https://ipwho.is — HTTPS, free for commercial use (10k req/month). Primary provider in the App Store build.
+struct IPWhoResponse: Decodable {
+    struct Connection: Decodable { let isp: String?; let org: String? }
+    let success: Bool
+    let ip: String?
+    let city: String?
+    let region: String?
+    let country_code: String?
+    let latitude: Double?
+    let longitude: Double?
+    let connection: Connection?
+
+    var info: IPInfo? {
+        guard success, let ip else { return nil }
+        return IPInfo(ip: ip, city: city, region: region, countryCode: country_code,
+                      lat: latitude, lon: longitude, isp: connection?.isp ?? connection?.org)
+    }
+}
+
 /// http://edns.ip-api.com/json — reports the resolver that answered our DNS query.
 struct EDNSResponse: Decodable {
     struct Entry: Decodable { let geo: String; let ip: String }
@@ -154,6 +173,7 @@ enum Settings {
         ("showDNS", "DNS-резолвер / утечка", true),
         ("showSpeed", "Скорость сети", true),
         ("showLocal", "Локальная сеть", true),
+        ("showSSID", "Имя Wi‑Fi сети (нужно разрешение «Геопозиция»)", false),
         ("showPing", "Пинг", true),
     ]
     static let pingPresets: [(title: String, target: String)] = [
@@ -433,8 +453,14 @@ final class WidgetModel {
     }
 
     private func fetchPrimary(_ done: @escaping (IPInfo?) -> Void) {
+        #if APPSTORE
+        get(URL(string: "https://ipwho.is/")!) { data in
+            done(data.flatMap { try? JSONDecoder().decode(IPWhoResponse.self, from: $0) }?.info)
+        }
+        #else
         let url = URL(string: "http://ip-api.com/json/?fields=status,message,countryCode,regionName,city,lat,lon,isp,query")!
         get(url) { data in done(data.flatMap { try? JSONDecoder().decode(IPAPIResponse.self, from: $0) }?.info) }
+        #endif
     }
 
     private func fetchFallback(_ done: @escaping (IPInfo?) -> Void) {
@@ -555,7 +581,8 @@ final class WidgetModel {
         }
         let tunnel = iface.type == .other && (iface.name.hasPrefix("utun") || iface.name.hasPrefix("ipsec") || iface.name.hasPrefix("ppp"))
         var ssid: String?
-        if iface.type == .wifi, let s = CWWiFiClient.shared().interface(withName: iface.name)?.ssid(), !s.isEmpty { ssid = s }
+        if Settings.flag("showSSID"), iface.type == .wifi,
+           let s = CWWiFiClient.shared().interface(withName: iface.name)?.ssid(), !s.isEmpty { ssid = s }
         local = LocalNet(interface: iface.name, kind: kind, ssid: ssid, ipv4: ipv4Address(of: iface.name),
                          isTunnel: tunnel, gateway: local?.interface == iface.name ? local?.gateway : nil)
     }
@@ -576,40 +603,20 @@ final class WidgetModel {
     }
 
     private func refreshGateway() {
-        run("/sbin/route", ["-n", "get", "default"]) { [weak self] out in
-            let gw = out.split(separator: "\n").first { $0.contains("gateway:") }?
-                .split(separator: ":").last.map { $0.trimmingCharacters(in: .whitespaces) }
-            self?.local?.gateway = gw
-            self?.changed()
-        }
+        let route = SystemConfig.defaultRoute()
+        local?.gateway = route.router
+        changed()
     }
 
     private func refreshVPNNames() {
-        run("/usr/sbin/scutil", ["--nc", "list"]) { [weak self] out in
-            let names = out.split(separator: "\n").filter { $0.contains("(Connected)") }.compactMap { line -> String? in
-                guard let a = line.firstIndex(of: "\""), let b = line.lastIndex(of: "\""), a < b else { return nil }
-                return String(line[line.index(after: a)..<b])
-            }
-            self?.vpnNames = names
-            self?.changed()
-        }
+        vpnNames = SystemConfig.connectedVPNNames()
+        changed()
     }
 
-    private func run(_ path: String, _ args: [String], _ done: @escaping (String) -> Void) {
-        DispatchQueue.global(qos: .utility).async {
-            let p = Process()
-            p.executableURL = URL(fileURLWithPath: path)
-            p.arguments = args
-            let pipe = Pipe()
-            p.standardOutput = pipe
-            p.standardError = FileHandle.nullDevice
-            var out = ""
-            if (try? p.run()) != nil {
-                out = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-                p.waitUntilExit()
-            }
-            DispatchQueue.main.async { done(out) }
-        }
+    /// CoreWLAN only returns the SSID when the app has Location authorization (macOS 14+).
+    private let locationManager = CLLocationManager()
+    func requestLocationForSSID() {
+        if locationManager.authorizationStatus == .notDetermined { locationManager.requestWhenInUseAuthorization() }
     }
 
     // MARK: Throughput (interface byte counters, 1 s sampling)
@@ -702,8 +709,18 @@ final class WidgetModel {
         }
     }
 
-    // MARK: Self-update
+    /// Quote a CSV field; ISP names come from a third-party API, so defuse spreadsheet formula prefixes too.
+    private func csvField(_ v: String) -> String {
+        var f = v.replacingOccurrences(of: "\"", with: "\"\"")
+        if let c = f.first, "=+-@\t\r".contains(c) { f = "'" + f }
+        return "\"" + f + "\""
+    }
 
+    // MARK: Self-update (local build only)
+
+    #if APPSTORE
+    func rebuildFromSource() -> Bool { false }
+    #else
     /// git pull (if a remote exists) + build.sh, detached so it survives our own restart.
     func rebuildFromSource() -> Bool {
         guard let repo = Settings.repoPath, FileManager.default.fileExists(atPath: repo + "/build.sh") else { return false }
@@ -717,14 +734,8 @@ final class WidgetModel {
         return (try? p.run()) != nil
     }
 
-    /// Quote a CSV field; ISP names come from a third-party API, so defuse spreadsheet formula prefixes too.
-    private func csvField(_ v: String) -> String {
-        var f = v.replacingOccurrences(of: "\"", with: "\"\"")
-        if let c = f.first, "=+-@\t\r".contains(c) { f = "'" + f }
-        return "\"" + f + "\""
-    }
-
     private func shellQuote(_ s: String) -> String { "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'" }
+    #endif
 
     // MARK: Notifications
 

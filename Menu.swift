@@ -24,13 +24,18 @@ final class MenuController: NSObject, NSMenuDelegate {
         menu.addItem(st)
         menu.addItem(.separator())
 
-        menu.addItem(submenu("Размер", WidgetSize.allCases.map { s in
+        menu.addItem(submenu(tr("Language"), [
+            item(tr("System language"), #selector(pickLanguage(_:)), on: Settings.language.isEmpty, rep: ""),
+            item("Русский", #selector(pickLanguage(_:)), on: Settings.language == "ru", rep: "ru"),
+            item("English", #selector(pickLanguage(_:)), on: Settings.language == "en", rep: "en"),
+        ]))
+        menu.addItem(submenu(tr("Size"), WidgetSize.allCases.map { s in
             item(s.title, #selector(pickSize(_:)), tag: s.rawValue, on: Settings.size == s)
         }))
-        menu.addItem(submenu("Карта", Settings.zooms.enumerated().map { i, z in
+        menu.addItem(submenu(tr("Map"), Settings.zooms.enumerated().map { i, z in
             item(z.title, #selector(pickZoom(_:)), tag: i, on: Settings.mapMeters == z.meters)
         }))
-        menu.addItem(submenu("Интервал обновления", Settings.intervals.enumerated().map { i, v in
+        menu.addItem(submenu(tr("Refresh interval"), Settings.intervals.enumerated().map { i, v in
             item(v.title, #selector(pickInterval(_:)), tag: i, on: Settings.interval == v.seconds)
         }))
 
@@ -38,14 +43,14 @@ final class MenuController: NSObject, NSMenuDelegate {
             item(m.title, #selector(pickMaterial(_:)), tag: i, on: Settings.material == i)
         }
         look.append(.separator())
-        look.append(item("Всегда тёмная тема", #selector(toggleDark), on: Settings.forceDark))
-        menu.addItem(submenu("Оформление", look))
+        look.append(item(tr("Always dark theme"), #selector(toggleDark), on: Settings.forceDark))
+        menu.addItem(submenu(tr("Appearance"), look))
 
-        menu.addItem(submenu("Показывать", Settings.flags.map { f in
+        menu.addItem(submenu(tr("Show"), Settings.flags.map { f in
             item(f.title, #selector(toggleFlag(_:)), on: Settings.flag(f.key), rep: f.key)
         }))
 
-        menu.addItem(submenu("Строка меню", MenuBarStyle.allCases.map { s in
+        menu.addItem(submenu(tr("Menu bar"), MenuBarStyle.allCases.map { s in
             item(s.title, #selector(pickMenuBar(_:)), tag: s.rawValue, on: Settings.menuBar == s)
         }))
 
@@ -58,62 +63,62 @@ final class MenuController: NSObject, NSMenuDelegate {
             ping += custom.map { item($0, #selector(togglePingTarget(_:)), on: true, rep: $0) }
         }
         ping.append(.separator())
-        ping.append(item("Добавить адрес…", #selector(addPingTarget)))
-        ping.append(item("Сбросить", #selector(resetPingTargets)))
-        menu.addItem(submenu("Цели пинга", ping))
+        ping.append(item(tr("Add address…"), #selector(addPingTarget)))
+        ping.append(item(tr("Reset"), #selector(resetPingTargets)))
+        menu.addItem(submenu(tr("Ping targets"), ping))
 
         menu.addItem(.separator())
-        menu.addItem(item("Маскировать IP (для демонстраций)", #selector(toggleMask), on: Settings.maskIP))
-        menu.addItem(item("Скрыть виджет с рабочего стола", #selector(toggleHidden), on: Settings.hidden))
-        menu.addItem(item("На всех экранах", #selector(toggleAllScreens), on: Settings.allScreens))
-        menu.addItem(item("Хоткей ⌃⌥I — показать и скопировать IP", #selector(toggleHotkey), on: Settings.hotkey))
-        menu.addItem(item("Уведомлять о смене IP", #selector(toggleNotify), on: Settings.notify))
-        var sounds = [item("Без звука", #selector(pickSound), on: Settings.changeSound.isEmpty, rep: ""), .separator()]
+        menu.addItem(item(tr("Mask IP (for demos)"), #selector(toggleMask), on: Settings.maskIP))
+        menu.addItem(item(tr("Hide widget from desktop"), #selector(toggleHidden), on: Settings.hidden))
+        menu.addItem(item(tr("On all screens"), #selector(toggleAllScreens), on: Settings.allScreens))
+        menu.addItem(item(tr("Hotkey ⌃⌥I — show and copy IP"), #selector(toggleHotkey), on: Settings.hotkey))
+        menu.addItem(item(tr("Notify on IP change"), #selector(toggleNotify), on: Settings.notify))
+        var sounds = [item(tr("No sound"), #selector(pickSound), on: Settings.changeSound.isEmpty, rep: ""), .separator()]
         sounds += Settings.systemSounds.map { item($0, #selector(pickSound), on: Settings.changeSound == $0, rep: $0) }
-        menu.addItem(submenu("Звук при смене IP", sounds))
-        menu.addItem(item("Тестовое уведомление", #selector(testNotification)))
+        menu.addItem(submenu(tr("Sound on IP change"), sounds))
+        menu.addItem(item(tr("Test notification"), #selector(testNotification)))
 
         menu.addItem(.separator())
 
         var home: [NSMenuItem] = []
         if let h = Settings.homeISP {
-            let cur = item("Домашняя: \(h)", nil); cur.isEnabled = false; home.append(cur)
-            home.append(item("Сбросить", #selector(clearHome)))
+            let cur = item(tr("Home: ") + h, nil); cur.isEnabled = false; home.append(cur)
+            home.append(item(tr("Reset"), #selector(clearHome)))
         } else {
-            let cur = item("Не задана — VPN определяется по туннелю", nil); cur.isEnabled = false; home.append(cur)
+            let cur = item(tr("Not set — VPN is detected by the tunnel"), nil); cur.isEnabled = false; home.append(cur)
         }
-        home.append(item("Запомнить текущую сеть как домашнюю", #selector(setHome)))
-        menu.addItem(submenu("Домашняя сеть", home))
+        home.append(item(tr("Remember current network as home"), #selector(setHome)))
+        menu.addItem(submenu(tr("Home network"), home))
 
         let df = DateFormatter(); df.dateFormat = "dd.MM HH:mm"
         var hist = Settings.history.suffix(10).reversed().map { e in
             item("\(df.string(from: e.date))  \(Settings.maskIP ? maskIP(e.ip) : e.ip)  ·  \(e.isp)", #selector(copyFromHistory(_:)), rep: e.ip)
         }
-        if hist.isEmpty { let e = item("Пусто", nil); e.isEnabled = false; hist = [e] }
+        if hist.isEmpty { let e = item(tr("Empty"), nil); e.isEnabled = false; hist = [e] }
         hist.append(.separator())
-        hist.append(item("Экспорт в CSV (~/Downloads)", #selector(exportHistory)))
-        hist.append(item("Очистить историю", #selector(clearHistory)))
-        menu.addItem(submenu("История IP (\(Settings.history.count))", hist))
+        hist.append(item(tr("Export CSV (~/Downloads)"), #selector(exportHistory)))
+        hist.append(item(tr("Clear history"), #selector(clearHistory)))
+        menu.addItem(submenu(tr("IP history") + " (\(Settings.history.count))", hist))
 
         menu.addItem(.separator())
-        menu.addItem(item("Обновить сейчас", #selector(refreshNow), key: "r"))
-        menu.addItem(item("Скопировать IP", #selector(copyIP), key: "c"))
-        menu.addItem(item("Открыть в Картах", #selector(openInMaps)))
-        let speed = item(model.speedTestRunning ? "Тест скорости…" : "Тест скорости (Cloudflare)", #selector(speedTest))
+        menu.addItem(item(tr("Refresh now"), #selector(refreshNow), key: "r"))
+        menu.addItem(item(tr("Copy IP"), #selector(copyIP), key: "c"))
+        menu.addItem(item(tr("Open in Maps"), #selector(openInMaps)))
+        let speed = item(model.speedTestRunning ? tr("Speed test…") : tr("Speed test (Cloudflare)"), #selector(speedTest))
         speed.isEnabled = !model.speedTestRunning
         menu.addItem(speed)
         menu.addItem(.separator())
         #if APPSTORE
-        let login = item("Запускать при входе", #selector(toggleLoginItem), on: SMAppService.mainApp.status == .enabled)
+        let login = item(tr("Launch at login"), #selector(toggleLoginItem), on: SMAppService.mainApp.status == .enabled)
         menu.addItem(login)
         #else
-        let rebuild = item("Пересобрать из исходников", #selector(rebuild))
+        let rebuild = item(tr("Rebuild from source"), #selector(rebuild))
         rebuild.isEnabled = Settings.repoPath != nil
         rebuild.toolTip = Settings.repoPath
         menu.addItem(rebuild)
         #endif
-        menu.addItem(item("О программе", #selector(about)))
-        menu.addItem(item("Выйти", #selector(quit), key: "q"))
+        menu.addItem(item(tr("About"), #selector(about)))
+        menu.addItem(item(tr("Quit"), #selector(quit), key: "q"))
     }
 
     private func statusLine() -> String {
@@ -171,6 +176,7 @@ final class MenuController: NSObject, NSMenuDelegate {
         if Settings.notify { model.requestNotificationAuth() }
     }
     @objc private func testNotification() { model.testNotification() }
+    @objc private func pickLanguage(_ s: NSMenuItem) { Settings.language = s.representedObject as? String ?? ""; changed() }
     @objc private func pickSound(_ s: NSMenuItem) {
         let name = s.representedObject as? String ?? ""
         Settings.changeSound = name
@@ -187,12 +193,12 @@ final class MenuController: NSObject, NSMenuDelegate {
 
     @objc private func addPingTarget() {
         let alert = NSAlert()
-        alert.messageText = "Цель пинга"
-        alert.informativeText = "IP или hostname. Измеряется время TCP-соединения на порт 443."
-        alert.addButton(withTitle: "Добавить")
-        alert.addButton(withTitle: "Отмена")
+        alert.messageText = tr("Ping target")
+        alert.informativeText = tr("IP or hostname. Measures TCP connect time to port 443.")
+        alert.addButton(withTitle: tr("Add"))
+        alert.addButton(withTitle: tr("Cancel"))
         let tf = NSTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
-        tf.placeholderString = "например 9.9.9.9 или my.server.com"
+        tf.placeholderString = tr("e.g. 9.9.9.9 or my.server.com")
         alert.accessoryView = tf
         NSApp.activate(ignoringOtherApps: true)
         alert.window.initialFirstResponder = tf
@@ -228,12 +234,7 @@ final class MenuController: NSObject, NSMenuDelegate {
 
     @objc private func about() {
         NSApp.activate(ignoringOtherApps: true)
-        let credits = NSAttributedString(string: """
-        Внешний IP, геолокация, VPN и DNS-утечки, пинг и скорость — на рабочем столе и в строке меню.
-
-        Данные: ipwho.is, ipinfo.io, ip-api.com (DNS), ipify.org (IPv6), Cloudflare (тест скорости).
-        IP-адрес отправляется этим сервисам для определения геолокации; ничего не сохраняется на сервере разработчика.
-        """, attributes: [.font: NSFont.systemFont(ofSize: 11)])
+        let credits = NSAttributedString(string: tr("about.credits"), attributes: [.font: NSFont.systemFont(ofSize: 11)])
         NSApp.orderFrontStandardAboutPanel(options: [.credits: credits, .applicationName: "IP Widget"])
     }
 
@@ -249,8 +250,8 @@ final class MenuController: NSObject, NSMenuDelegate {
     @objc private func rebuild() {
         if !model.rebuildFromSource() {
             let a = NSAlert()
-            a.messageText = "Не удалось запустить пересборку"
-            a.informativeText = "Нет build.sh по пути \(Settings.repoPath ?? "—")"
+            a.messageText = tr("Could not start the rebuild")
+            a.informativeText = tr("No build.sh at %@", Settings.repoPath ?? "—")
             NSApp.activate(ignoringOtherApps: true)
             a.runModal()
         }

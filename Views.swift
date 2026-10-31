@@ -88,8 +88,8 @@ final class HoverTip {
         bg.layer?.masksToBounds = true
         label.font = .systemFont(ofSize: 11)
         label.textColor = .labelColor
-        label.maximumNumberOfLines = 6
-        label.preferredMaxLayoutWidth = 320
+        label.maximumNumberOfLines = 14
+        label.preferredMaxLayoutWidth = 360
         label.translatesAutoresizingMaskIntoConstraints = false
         bg.addSubview(label)
         NSLayoutConstraint.activate([
@@ -114,7 +114,7 @@ final class HoverTip {
         guard let owner, owner.window != nil else { return }
         label.stringValue = text
         let size = label.fittingSize
-        let w = min(size.width, 320) + 16, h = size.height + 10
+        let w = min(size.width, 360) + 16, h = size.height + 10
         var origin = NSEvent.mouseLocation
         origin.x += 12; origin.y -= h + 14
         if let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) }) {
@@ -229,7 +229,7 @@ final class WidgetWindow {
 
     private let ipLabel = CopyLabel(labelWithString: "…")
     private let badge = Badge()
-    private let placeLabel = CopyLabel(labelWithString: "Определяю IP…")
+    private let placeLabel = CopyLabel(labelWithString: tr("Detecting IP…"))
     private let ispLabel = CopyLabel(labelWithString: "")
     private let ipv6Label = CopyLabel(labelWithString: "")
     private let dnsLabel = CopyLabel(labelWithString: "")
@@ -331,10 +331,9 @@ final class WidgetWindow {
         // dnsLabel copies its whole line (resolver, country, IP)
         // localLabel copies its whole line
         pingLabel.copyValue = { [weak self] in self?.model.pingDetails }
-        for l in [ipLabel, placeLabel, ispLabel, ipv6Label, dnsLabel, speedLabel, localLabel] { l.toolTip = "Клик — скопировать" }
 
-        configure(button: refreshButton, symbol: "arrow.clockwise", tip: "Обновить", action: #selector(refreshNow))
-        configure(button: settingsButton, symbol: "gearshape", tip: "Настройки", action: #selector(showSettings(_:)))
+        configure(button: refreshButton, symbol: "arrow.clockwise", tip: tr("Refresh"), action: #selector(refreshNow))
+        configure(button: settingsButton, symbol: "gearshape", tip: tr("Settings"), action: #selector(showSettings(_:)))
 
         let header = hstack([ipLabel, badge, spacer()], spacing: 8)
         speedRow = hstack([speedLabel, spacer(), spark], spacing: 6)
@@ -369,7 +368,7 @@ final class WidgetWindow {
         // Transparent overlay pinned to the map: drag moves the window, click opens Maps (MKMapView eats mouse events).
         cover.translatesAutoresizingMaskIntoConstraints = false
         cover.onClick = { [weak self] in self?.openInMaps() }
-        cover.toolTip = "Открыть в Картах"
+        cover.toolTip = tr("tip.map")
         root.addSubview(cover, positioned: .above, relativeTo: column)
 
         widthConstraint = root.widthAnchor.constraint(equalToConstant: 340)
@@ -495,7 +494,7 @@ final class WidgetWindow {
         if let info = m.info {
             placeLabel.stringValue = [info.flag, info.place].filter { !$0.isEmpty }.joined(separator: "  ")
         } else if m.offline {
-            placeLabel.stringValue = "Нет сети"
+            placeLabel.stringValue = tr("No network")
         }
         ispLabel.stringValue = m.ispText
         ipv6Label.stringValue = m.ipv6Text
@@ -504,7 +503,7 @@ final class WidgetWindow {
         dnsLabel.textColor = m.dnsLeak ? .systemRed : .tertiaryLabelColor
         dnsLabel.font = .systemFont(ofSize: 11, weight: m.dnsLeak ? .bold : .regular)
         let verdict = m.dnsVerdict.reason
-        dnsLabel.toolTip = (verdict.isEmpty ? "" : verdict + "\n") + "Клик — скопировать строку"
+        dnsLabel.toolTip = tr("tip.dns") + (verdict.isEmpty ? "" : "\n\n" + verdict)
 
         speedLabel.stringValue = m.speedText
         spark.samples = m.rateHistory
@@ -512,15 +511,26 @@ final class WidgetWindow {
 
         localLabel.stringValue = m.localText
         let others = m.otherVPNNames
-        localLabel.toolTip = (others.isEmpty ? "" : "Также подключены: " + others.joined(separator: ", ") + "\n") + "Клик — скопировать строку"
+        localLabel.toolTip = tr("tip.local") + (others.isEmpty ? "" : "\n\n" + tr("Also connected: ") + others.joined(separator: ", "))
         pingLabel.stringValue = m.pingText
-        pingLabel.toolTip = m.pingDetails.isEmpty ? nil : m.pingDetails
+        pingLabel.toolTip = tr("tip.ping") + (m.pingDetails.isEmpty ? "" : "\n\n" + m.pingDetails)
         if let w = m.worstPing {
             pingLabel.textColor = w.ms < 50 ? .systemGreen : (w.ms < 150 ? .systemOrange : .systemRed)
         } else {
             pingLabel.textColor = .tertiaryLabelColor
         }
         timeLabel.stringValue = m.timeText
+        timeLabel.toolTip = tr("tip.time", m.intervalTitle)
+        placeLabel.toolTip = tr("tip.place")
+        ispLabel.toolTip = tr("tip.isp")
+        ipv6Label.toolTip = tr("tip.ipv6")
+        speedLabel.toolTip = tr("tip.speed")
+        spark.toolTip = tr("tip.speed")
+        stripe.toolTip = tr("tip.stripe")
+        cover.toolTip = tr("tip.map")
+        refreshButton.toolTip = tr("Refresh")
+        settingsButton.toolTip = tr("Settings")
+        ipLabel.toolTip = tr("tip.ip", m.providerName, m.intervalTitle)
 
         if let b = m.badge {
             badge.isHidden = false
@@ -528,7 +538,12 @@ final class WidgetWindow {
         } else {
             badge.isHidden = true
         }
-        badge.toolTip = m.vpnNames.isEmpty ? (m.local?.interface) : m.vpnNames.joined(separator: ", ")
+        if m.vpnActive {
+            badge.toolTip = tr(m.local?.isTunnel == true ? "tip.badge.vpn.tunnel" : "tip.badge.vpn.isp")
+                + (m.vpnNames.isEmpty ? "" : "\n" + m.vpnNames.joined(separator: ", "))
+        } else {
+            badge.toolTip = tr("tip.badge.home")
+        }
 
         setRefreshing(m.isRefreshing)
 

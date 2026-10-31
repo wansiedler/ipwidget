@@ -142,7 +142,7 @@ enum StatusLevel {
 
 enum WidgetSize: Int, CaseIterable {
     case compact, normal, large
-    var title: String { ["Компактный", "Обычный", "Большой"][rawValue] }
+    var title: String { [tr("Compact"), tr("Normal"), tr("Large")][rawValue] }
     var width: CGFloat { [300, 340, 420][rawValue] }
     var mapHeight: CGFloat { [0, 150, 220][rawValue] }
     var ipFontSize: CGFloat { [20, 26, 30][rawValue] }
@@ -150,34 +150,34 @@ enum WidgetSize: Int, CaseIterable {
 
 enum MenuBarStyle: Int, CaseIterable {
     case ipFlag, flagOnly, hidden
-    var title: String { ["Флаг + IP", "Только флаг", "Скрыть"][rawValue] }
+    var title: String { [tr("Flag + IP"), tr("Flag only"), tr("Hidden")][rawValue] }
 }
 
 enum Settings {
     private static let d = UserDefaults.standard
 
-    static let intervals: [(title: String, seconds: TimeInterval)] = [
-        ("15 секунд", 15), ("30 секунд", 30), ("1 минута", 60), ("5 минут", 300), ("15 минут", 900),
+    static var intervals: [(title: String, seconds: TimeInterval)] = [
+        (tr("15 seconds"), 15), (tr("30 seconds"), 30), (tr("1 minute"), 60), (tr("5 minutes"), 300), (tr("15 minutes"), 900),
     ]
-    static let zooms: [(title: String, meters: Double)] = [
-        ("Город (40 км)", 40_000), ("Регион (200 км)", 200_000), ("Страна (1500 км)", 1_500_000), ("Скрыть карту", 0),
+    static var zooms: [(title: String, meters: Double)] = [
+        (tr("City (40 km)"), 40_000), (tr("Region (200 km)"), 200_000), (tr("Country (1500 km)"), 1_500_000), (tr("Hide map"), 0),
     ]
-    static let materials: [(title: String, material: NSVisualEffectView.Material)] = [
-        ("Тёмное стекло (HUD)", .hudWindow), ("Светлое стекло (Popover)", .popover),
-        ("Sidebar", .sidebar), ("Плотное (Titlebar)", .titlebar),
+    static var materials: [(title: String, material: NSVisualEffectView.Material)] = [
+        (tr("Dark glass (HUD)"), .hudWindow), (tr("Light glass (Popover)"), .popover),
+        ("Sidebar", .sidebar), (tr("Dense (Titlebar)"), .titlebar),
     ]
-    static let flags: [(key: String, title: String, def: Bool)] = [
-        ("showISP", "Провайдер", true),
+    static var flags: [(key: String, title: String, def: Bool)] = [
+        ("showISP", tr("ISP"), true),
         ("showHost", "Hostname (reverse DNS)", true),
         ("showIPv6", "IPv6", true),
-        ("showDNS", "DNS-резолвер / утечка", true),
-        ("showSpeed", "Скорость сети", true),
-        ("showLocal", "Локальная сеть", true),
-        ("showSSID", "Имя Wi‑Fi сети (нужно разрешение «Геопозиция»)", false),
-        ("showPing", "Пинг", true),
+        ("showDNS", tr("DNS resolver / leak"), true),
+        ("showSpeed", tr("Network speed"), true),
+        ("showLocal", tr("Local network"), true),
+        ("showSSID", tr("Wi‑Fi network name (needs Location permission)"), false),
+        ("showPing", tr("Ping"), true),
     ]
-    static let pingPresets: [(title: String, target: String)] = [
-        ("Cloudflare 1.1.1.1", "1.1.1.1"), ("Google 8.8.8.8", "8.8.8.8"), ("Quad9 9.9.9.9", "9.9.9.9"), ("Шлюз (роутер)", "gw"),
+    static var pingPresets: [(title: String, target: String)] = [
+        ("Cloudflare 1.1.1.1", "1.1.1.1"), ("Google 8.8.8.8", "8.8.8.8"), ("Quad9 9.9.9.9", "9.9.9.9"), (tr("Gateway (router)"), "gw"),
     ]
 
     static func flag(_ key: String) -> Bool {
@@ -202,6 +202,8 @@ enum Settings {
     static var material: Int { get { Int(double("material", 0)) } set { d.set(newValue, forKey: "material") } }
     static var forceDark: Bool { get { bool("forceDark", false) } set { d.set(newValue, forKey: "forceDark") } }
     static var notify: Bool { get { bool("notify", true) } set { d.set(newValue, forKey: "notify") } }
+    /// "" = follow the system, "ru" or "en" = forced.
+    static var language: String { get { d.string(forKey: "language") ?? "" } set { d.set(newValue, forKey: "language") } }
     /// System sound played when the IP changes; empty string = off. Default "Glass".
     static var changeSound: String {
         get { d.object(forKey: "changeSound") as? String ?? "Glass" }
@@ -333,21 +335,21 @@ final class WidgetModel {
         let isp = info?.isp?.lowercased() ?? ""
         let sys = systemDNS.joined(separator: ", ")
         if let home = Settings.homeISP?.lowercased(), !home.isEmpty, !org.isEmpty, org.contains(home) || home.contains(org) {
-            return (true, "резолвер домашнего провайдера (\(dns.org))")
+            return (true, tr("home ISP resolver (%@)", dns.org))
         }
         if let r = lanRouter, systemDNS.contains(r) {
-            return (true, "системный DNS = домашний роутер \(r), запросы идут мимо туннеля")
+            return (true, tr("system DNS = home router %@, queries bypass the tunnel", r))
         }
         if !systemDNS.isEmpty, systemDNS.allSatisfy(isPrivateIP) {
-            return (false, "системный DNS \(sys) внутри туннеля; его upstream — \(dns.org)")
+            return (false, tr("system DNS %@ is inside the tunnel; its upstream is %@", sys, dns.org))
         }
         if Self.publicResolvers.contains(where: { org.contains($0) }) {
-            return (false, "публичный резолвер \(dns.org); системный DNS \(sys)")
+            return (false, tr("public resolver %@; system DNS %@", dns.org, sys))
         }
         if !org.isEmpty, !isp.isEmpty, org.contains(isp) || isp.contains(org) {
-            return (false, "резолвер провайдера выхода; системный DNS \(sys)")
+            return (false, tr("exit ISP's resolver; system DNS %@", sys))
         }
-        return (true, "резолвер \(dns.org) не совпадает ни с туннелем, ни с публичными; системный DNS \(sys)")
+        return (true, tr("resolver %@ matches neither the tunnel nor a public resolver; system DNS %@", dns.org, sys))
     }
 
     private func isPrivateIP(_ s: String) -> Bool {
@@ -375,6 +377,16 @@ final class WidgetModel {
         if let t = lastChangeAt, Date().timeIntervalSince(t) < 60 { return .warn }
         return info == nil ? .unknown : .ok
     }
+
+    /// Primary data source name for tooltips.
+    var providerName: String {
+        #if APPSTORE
+        return "ipwho.is"
+        #else
+        return "ip-api.com"
+        #endif
+    }
+    var intervalTitle: String { Settings.intervals.first { $0.seconds == Settings.interval }?.title ?? "\(Int(Settings.interval)) s" }
 
     var ipText: String {
         guard let ip = info?.ip else { return "…" }
@@ -404,11 +416,11 @@ final class WidgetModel {
         pings.map { "\(pingName($0.target)) \($0.ms.map { "\($0) ms" } ?? "—")" }.joined(separator: " · ")
     }
 
-    func pingName(_ target: String) -> String { target == "gw" ? (local?.gateway ?? "шлюз") : target }
+    func pingName(_ target: String) -> String { target == "gw" ? (local?.gateway ?? tr("gateway")) : target }
 
     var speedText: String {
         if let t = speedTestText { return t }
-        if speedTestRunning { return "Тест скорости…" }
+        if speedTestRunning { return tr("Speed test…") }
         return "↓ \(formatRate(downRate))   ↑ \(formatRate(upRate))"
     }
 
@@ -737,7 +749,7 @@ final class WidgetModel {
                     self.speedTestRunning = false
                     let d = downMbps.map { String(format: "%.0f", $0) } ?? "—"
                     let u = upMbps.map { String(format: "%.0f", $0) } ?? "—"
-                    self.speedTestText = "Тест: ↓ \(d) ↑ \(u) Mbps"
+                    self.speedTestText = tr("Test: ↓ %@ ↑ %@ Mbps", d, u)
                     self.changed()
                     DispatchQueue.main.asyncAfter(deadline: .now() + 60) { [weak self] in
                         self?.speedTestText = nil
@@ -824,7 +836,7 @@ final class WidgetModel {
     private func notifyChange(old: IPInfo, new: IPInfo) {
         guard Settings.notify else { return }
         let c = UNMutableNotificationContent()
-        c.title = "IP изменился"
+        c.title = tr("IP changed")
         let shown: (String) -> String = { Settings.maskIP ? maskIP($0) : $0 }
         c.body = "\(shown(old.ip)) → \(shown(new.ip))\n\(new.flag) \(new.place) · \(new.isp ?? "")"
         c.sound = Settings.changeSound.isEmpty ? .default : nil // own sound already played
@@ -845,7 +857,7 @@ final class WidgetModel {
                 if st.authorizationStatus == .notDetermined { self.requestNotificationAuth() }
                 let c = UNMutableNotificationContent()
                 c.title = "IP Widget"
-                c.body = "Уведомления работают. Текущий IP: \(self.ipText)"
+                c.body = tr("Notifications work. Current IP: %@", self.ipText)
                 c.sound = Settings.changeSound.isEmpty ? .default : nil
                 self.playChangeSound()
                 center.add(UNNotificationRequest(identifier: "test", content: c, trigger: nil)) { err in

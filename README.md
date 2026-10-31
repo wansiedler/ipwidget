@@ -27,6 +27,8 @@ pinned to the IP geolocation. Sits at desktop-icon window level (below all app w
 | Size | compact (no map, 300 px) / normal (340, map 150) / large (420, map 220) |
 | Map click | opens the location in Apple Maps; drag anywhere (map included) moves the widget |
 | Reverse DNS | PTR hostname of the public IP next to the ISP |
+| Language | English or Russian, following the system language; override in ⚙ → Language. All strings live in `L10n.swift` (English keys, Russian table) |
+| Tooltips | hovering any value explains how it is computed (data source, method, thresholds); DNS and ping tooltips append the current verdict / per-target details. Drawn by the widget itself (`HoverTip`), since system tooltips never show for a desktop-level accessory app |
 | Click to copy | IP, place, ISP/host, IPv6 and latency copy their value; the DNS and local-network rows copy the whole line; label flashes green |
 
 ### Network monitor (v3)

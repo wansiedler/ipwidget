@@ -18,6 +18,28 @@ enum SystemConfig {
         return (g["Router"] as? String, g["PrimaryInterface"] as? String)
     }
 
+    /// DNS servers the system actually queries: those of the primary service (the interface that owns
+    /// the default route), falling back to the global list.
+    static func primaryDNSServers() -> [String] {
+        guard let s = store() else { return [] }
+        if let id = dict(s, "State:/Network/Global/IPv4")?["PrimaryService"] as? String,
+           let d = dict(s, "State:/Network/Service/\(id)/DNS"),
+           let a = d["ServerAddresses"] as? [String], !a.isEmpty { return a }
+        return (dict(s, "State:/Network/Global/DNS")?["ServerAddresses"] as? [String]) ?? []
+    }
+
+    /// Router of the physical (en*) interface, i.e. the LAN gateway even while a VPN owns the default route.
+    static func lanRouter() -> String? {
+        guard let s = store(),
+              let keys = SCDynamicStoreCopyKeyList(s, "State:/Network/Service/[^/]+/IPv4" as CFString) as? [String] else { return nil }
+        for key in keys {
+            guard let d = dict(s, key), let name = d["InterfaceName"] as? String, name.hasPrefix("en"),
+                  let r = d["Router"] as? String else { continue }
+            return r
+        }
+        return nil
+    }
+
     /// User-visible names of VPN / IPSec / PPP services that currently have an IPv4 state (= connected).
     static func connectedVPNNames() -> [String] {
         guard let s = store(),

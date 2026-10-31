@@ -237,7 +237,7 @@ final class WidgetWindow {
         ipLabel.copyValue = { [weak self] in self?.model.info?.ip }
         placeLabel.copyValue = { [weak self] in self?.model.info?.place }
         ipv6Label.copyValue = { [weak self] in self?.model.ipv6 }
-        dnsLabel.copyValue = { [weak self] in self?.model.dns?.ip }
+        // dnsLabel copies its whole line (resolver, country, IP)
         localLabel.copyValue = { [weak self] in self?.model.local?.ipv4 }
         pingLabel.copyValue = { [weak self] in self?.model.pingDetails }
         for l in [ipLabel, placeLabel, ispLabel, ipv6Label, dnsLabel, speedLabel, localLabel] { l.toolTip = "Клик — скопировать" }
@@ -412,6 +412,8 @@ final class WidgetWindow {
         dnsLabel.stringValue = m.dnsText
         dnsLabel.textColor = m.dnsLeak ? .systemRed : .tertiaryLabelColor
         dnsLabel.font = .systemFont(ofSize: 11, weight: m.dnsLeak ? .bold : .regular)
+        let verdict = m.dnsVerdict.reason
+        dnsLabel.toolTip = (verdict.isEmpty ? "" : verdict + "\n") + "Клик — скопировать строку"
 
         speedLabel.stringValue = m.speedText
         spark.samples = m.rateHistory

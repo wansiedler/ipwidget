@@ -274,6 +274,8 @@ final class WidgetModel {
     private(set) var vpnNames: [String] = []
     private(set) var pings: [(target: String, ms: Int?)] = []
     private(set) var dns: DNSResolver?
+    private(set) var systemDNS: [String] = []   // what macOS queries (primary service)
+    private(set) var lanRouter: String?
     private(set) var downRate = 0.0
     private(set) var upRate = 0.0
     private(set) var rateHistory: [Double] = []          // last 60 download samples, bytes/s
@@ -317,10 +319,49 @@ final class WidgetModel {
         return nil
     }
 
-    var dnsLeak: Bool {
-        guard vpnActive, let dns, let isp = info?.isp?.lowercased() else { return false }
+    var dnsLeak: Bool { dnsVerdict.leak }
+
+    private static let publicResolvers = ["cloudflare", "google", "quad9", "opendns", "cisco", "adguard",
+                                          "nextdns", "control d", "controld", "mullvad", "dns.sb", "comss"]
+
+    /// A DNS leak means queries leave the machine outside the tunnel. The upstream the tunnel's own
+    /// resolver forwards to (e.g. Cloudflare behind a 10.x provider resolver) is not a leak.
+    var dnsVerdict: (leak: Bool, reason: String) {
+        guard vpnActive, let dns else { return (false, "") }
         let org = dns.org.lowercased()
-        return !org.isEmpty && !isp.isEmpty && !org.contains(isp) && !isp.contains(org)
+        let isp = info?.isp?.lowercased() ?? ""
+        let sys = systemDNS.joined(separator: ", ")
+        if let home = Settings.homeISP?.lowercased(), !home.isEmpty, !org.isEmpty, org.contains(home) || home.contains(org) {
+            return (true, "резолвер домашнего провайдера (\(dns.org))")
+        }
+        if let r = lanRouter, systemDNS.contains(r) {
+            return (true, "системный DNS = домашний роутер \(r), запросы идут мимо туннеля")
+        }
+        if !systemDNS.isEmpty, systemDNS.allSatisfy(isPrivateIP) {
+            return (false, "системный DNS \(sys) внутри туннеля; его upstream — \(dns.org)")
+        }
+        if Self.publicResolvers.contains(where: { org.contains($0) }) {
+            return (false, "публичный резолвер \(dns.org); системный DNS \(sys)")
+        }
+        if !org.isEmpty, !isp.isEmpty, org.contains(isp) || isp.contains(org) {
+            return (false, "резолвер провайдера выхода; системный DNS \(sys)")
+        }
+        return (true, "резолвер \(dns.org) не совпадает ни с туннелем, ни с публичными; системный DNS \(sys)")
+    }
+
+    private func isPrivateIP(_ s: String) -> Bool {
+        var v4 = in_addr()
+        if inet_pton(AF_INET, s, &v4) == 1 {
+            let a = UInt32(bigEndian: v4.s_addr)
+            return (a >> 24) == 10 || (a >> 20) == 0xAC1 || (a >> 16) == 0xC0A8   // 10/8, 172.16/12, 192.168/16
+                || (a >> 22) == 0x191 || (a >> 16) == 0xA9FE                     // 100.64/10, 169.254/16
+        }
+        var v6 = in6_addr()
+        if inet_pton(AF_INET6, s, &v6) == 1 {
+            let b = withUnsafeBytes(of: v6) { $0[0] }
+            return (b & 0xFE) == 0xFC || b == 0xFE                                // fc00::/7, fe80::/10
+        }
+        return false
     }
 
     var worstPing: (target: String, ms: Int)? {
@@ -353,7 +394,7 @@ final class WidgetModel {
 
     var dnsText: String {
         guard let dns else { return "DNS …" }
-        return (dnsLeak ? "DNS LEAK: " : "DNS: ") + dns.org + (dns.country.isEmpty ? "" : ", " + dns.country)
+        return (dnsLeak ? "DNS LEAK: " : "DNS: ") + dns.org + (dns.country.isEmpty ? "" : ", " + dns.country) + " · " + dns.ip
     }
 
     var pingText: String { worstPing.map { "\($0.ms) ms" } ?? (pings.isEmpty ? "" : "— ms") }
@@ -615,6 +656,8 @@ final class WidgetModel {
     private func refreshGateway() {
         let route = SystemConfig.defaultRoute()
         local?.gateway = route.router
+        systemDNS = SystemConfig.primaryDNSServers()
+        lanRouter = SystemConfig.lanRouter()
         changed()
     }
 

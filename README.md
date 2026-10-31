@@ -33,7 +33,7 @@ pinned to the IP geolocation. Sits at desktop-icon window level (below all app w
 
 | | |
 |---|---|
-| DNS leak | `edns.ip-api.com` reports the resolver that answered our lookup; with VPN on and a resolver org ≠ public ISP the row turns red **DNS LEAK** and the status stripe goes red |
+| DNS leak | `edns.ip-api.com` reports the resolver that answered our lookup. With VPN on it is a **leak** when the system DNS (primary service, via SCDynamicStore) points at the LAN router or the resolver belongs to the remembered home ISP; a private tunnel resolver (10.x etc.), a public resolver (Cloudflare/Google/Quad9/…) or the exit ISP's resolver is fine. Row shows org, country and resolver IP, tooltip explains the verdict, click copies the whole line |
 | VPN detection | instant: default route via `utun*/ipsec*/ppp*` → VPN badge without waiting for the IP fetch; connected VPN names from `scutil --nc list` |
 | Throughput | ↓/↑ rate from the active interface byte counters (1 s sampling, 32-bit wrap handled) + 60 s sparkline |
 | Status stripe | 3 px bar on top: green ok · yellow IP changed < 60 s · red offline / DNS leak / latency > 150 ms |

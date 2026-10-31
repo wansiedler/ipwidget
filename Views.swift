@@ -33,9 +33,100 @@ class DragView: NSView {
     var onClick: (() -> Void)?
     private var tracker = DragTracker()
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
-    override func mouseDown(with event: NSEvent) { tracker.begin(window) }
+    override func mouseDown(with event: NSEvent) { HoverTip.shared.hide(); tracker.begin(window) }
     override func mouseDragged(with event: NSEvent) { tracker.drag(window) }
     override func mouseUp(with event: NSEvent) { if tracker.end(window) { onClick?() } }
+}
+
+/// Window-wide hover tracker. Standard NSToolTips never appear for an accessory app whose window
+/// sits at desktop level (the app is never active), so the root view shows its own tip panel for
+/// whatever subview under the cursor has a `toolTip`.
+final class TipRootView: DragView {
+    private var timer: Timer?
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseMoved, .mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self))
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        super.mouseMoved(with: event)
+        let p = convert(event.locationInWindow, from: nil)
+        var view = hitTest(p)
+        var tip: String?
+        while let v = view, tip == nil, v !== self { tip = v.toolTip; view = v.superview }
+        if let v = view, v !== self, tip != nil { HoverTip.shared.schedule(tip!, owner: v) } else { HoverTip.shared.hide() }
+    }
+    override func mouseExited(with event: NSEvent) { super.mouseExited(with: event); HoverTip.shared.hide() }
+    override func mouseDown(with event: NSEvent) { HoverTip.shared.hide(); super.mouseDown(with: event) }
+}
+
+/// Tiny tooltip panel; floats above the widget, ignores the mouse, hides on its own.
+final class HoverTip {
+    static let shared = HoverTip()
+    private let panel: NSPanel
+    private let label = NSTextField(wrappingLabelWithString: "")
+    private var timer: Timer?
+    private weak var owner: NSView?
+    private var text = ""
+
+    private init() {
+        panel = NSPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: true)
+        panel.level = .floating
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = true
+        panel.ignoresMouseEvents = true
+        panel.hidesOnDeactivate = false
+        panel.collectionBehavior = [.canJoinAllSpaces, .transient, .ignoresCycle]
+        let bg = NSVisualEffectView()
+        bg.material = .toolTip
+        bg.state = .active
+        bg.wantsLayer = true
+        bg.layer?.cornerRadius = 6
+        bg.layer?.masksToBounds = true
+        label.font = .systemFont(ofSize: 11)
+        label.textColor = .labelColor
+        label.maximumNumberOfLines = 6
+        label.preferredMaxLayoutWidth = 320
+        label.translatesAutoresizingMaskIntoConstraints = false
+        bg.addSubview(label)
+        NSLayoutConstraint.activate([
+            label.leadingAnchor.constraint(equalTo: bg.leadingAnchor, constant: 8),
+            label.trailingAnchor.constraint(equalTo: bg.trailingAnchor, constant: -8),
+            label.topAnchor.constraint(equalTo: bg.topAnchor, constant: 5),
+            label.bottomAnchor.constraint(equalTo: bg.bottomAnchor, constant: -5),
+        ])
+        panel.contentView = bg
+    }
+
+    func schedule(_ tip: String, owner: NSView) {
+        if panel.isVisible, self.owner === owner, text == tip { return }
+        if self.owner !== owner || text != tip { hidePanel() }
+        self.owner = owner
+        text = tip
+        timer?.invalidate()
+        timer = Timer.scheduledTimer(withTimeInterval: 0.6, repeats: false) { [weak self] _ in self?.show() }
+    }
+
+    private func show() {
+        guard let owner, owner.window != nil else { return }
+        label.stringValue = text
+        let size = label.fittingSize
+        let w = min(size.width, 320) + 16, h = size.height + 10
+        var origin = NSEvent.mouseLocation
+        origin.x += 12; origin.y -= h + 14
+        if let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) }) {
+            if origin.x + w > screen.visibleFrame.maxX { origin.x = screen.visibleFrame.maxX - w - 4 }
+            if origin.y < screen.visibleFrame.minY { origin.y = NSEvent.mouseLocation.y + 16 }
+        }
+        panel.setFrame(NSRect(origin: origin, size: NSSize(width: w, height: h)), display: true)
+        panel.orderFrontRegardless()
+    }
+
+    func hide() { timer?.invalidate(); timer = nil; hidePanel() }
+    private func hidePanel() { if panel.isVisible { panel.orderOut(nil) } }
 }
 
 /// Label that copies its value to the clipboard on click (drag still moves the window).
@@ -128,7 +219,7 @@ final class WidgetWindow {
     private let menu: NSMenu
     private var observer: UUID?
 
-    private let root = DragView()
+    private let root = TipRootView()
     private let blur = NSVisualEffectView()
     private let stripe = NSView()
     private let mapView = MKMapView()

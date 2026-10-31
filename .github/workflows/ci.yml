@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main, appstore, "feature/**"]
+  pull_request:
+
+jobs:
+  swiftc:
+    name: swiftc build (local variant)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+      - name: Build bundle
+        run: IPW_BUILD_ONLY=1 ./build.sh
+      - name: Verify bundle
+        run: |
+          test -x build/IPWidget.app/Contents/MacOS/IPWidget
+          test -f build/IPWidget.app/Contents/Resources/AppIcon.icns
+          codesign --verify --deep --strict build/IPWidget.app
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" build/IPWidget.app/Contents/Info.plist
+
+  xcode:
+    name: xcodebuild (App Store variant, unsigned)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install xcodegen
+        run: brew install xcodegen
+      - name: Generate project
+        run: xcodegen generate
+      - name: Build
+        run: |
+          xcodebuild -project IPWidget.xcodeproj -scheme IPWidget -configuration Release \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY="" DEVELOPMENT_TEAM="" \
+            build | tail -20
+          test -x build/DerivedData/Build/Products/Release/IPWidget.app/Contents/MacOS/IPWidget

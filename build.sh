@@ -40,6 +40,12 @@ SIGN_ID="${IPW_SIGN_ID:-$(security find-identity -v -p codesigning 2>/dev/null |
 codesign --force --options runtime --sign "${SIGN_ID:--}" "$APP"
 echo "signed as: ${SIGN_ID:-ad-hoc}"
 
+# IPW_BUILD_ONLY=1 (CI): stop after assembling and signing the bundle.
+if [ "${IPW_BUILD_ONLY:-0}" = "1" ]; then
+  echo "built: $APP"
+  exit 0
+fi
+
 # Stop running instance / agent
 launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
 pkill -x "$APP_NAME" 2>/dev/null || true

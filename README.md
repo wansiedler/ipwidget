@@ -1,5 +1,7 @@
 # IP Widget
 
+[![CI](https://github.com/wansiedler/ipwidget/actions/workflows/ci.yml/badge.svg)](https://github.com/wansiedler/ipwidget/actions/workflows/ci.yml)
+
 A native macOS desktop widget that shows your public IP, its location on a live Apple Maps view,
 your ISP, VPN state, DNS-leak verdict, latency and throughput — pinned to the desktop layer,
 on every Space, with a menu bar item.

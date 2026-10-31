@@ -46,5 +46,5 @@ Files: `project.yml`, `IPWidget.entitlements`, `PrivacyInfo.xcprivacy`, `Assets.
 
 ## Later
 
-- WidgetKit extension (static map snapshot + IP) for the Notification Center gallery — the main differentiator against MyIP.
+- WidgetKit extension: tried on 2026-10-31 and reverted on purpose. A WidgetKit widget is a static snapshot (map as an image, refresh cadence chosen by the system, ~15 min), with interactivity limited to AppIntent buttons and a deep link into the app — no hover/tooltips, no live ping/throughput/DNS-leak, no dragging. The desktop-level window is the product; a WidgetKit companion can be added later as an *addition* (it would make Finder reserve space for it like system widgets do).
 - Localisation (en/de) — strings are currently Russian only.

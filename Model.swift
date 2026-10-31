@@ -272,6 +272,7 @@ final class WidgetModel {
     private(set) var ipv6: String?
     private(set) var local: LocalNet?
     private(set) var vpnNames: [String] = []
+    private(set) var vpns: [(name: String, interface: String?)] = []
     private(set) var pings: [(target: String, ms: Int?)] = []
     private(set) var dns: DNSResolver?
     private(set) var systemDNS: [String] = []   // what macOS queries (primary service)
@@ -416,9 +417,14 @@ final class WidgetModel {
         return offline ? "offline · " + timeString() : t
     }
 
+    /// Name of the VPN service that owns the active interface (nil for tunnels without a service record).
+    var activeVPNName: String? { vpns.first { $0.interface != nil && $0.interface == local?.interface }?.name }
+    /// Other connected VPN services (e.g. Tailscale while an AWG tunnel owns the default route).
+    var otherVPNNames: [String] { vpns.filter { $0.interface == nil || $0.interface != local?.interface }.map(\.name) }
+
     var localText: String {
         var s = local?.text ?? ""
-        if !vpnNames.isEmpty { s = vpnNames.joined(separator: ", ") + (s.isEmpty ? "" : " · " + s) }
+        if let n = activeVPNName { s = n + (s.isEmpty ? "" : " · " + s) }
         return s
     }
 
@@ -662,7 +668,8 @@ final class WidgetModel {
     }
 
     private func refreshVPNNames() {
-        vpnNames = SystemConfig.connectedVPNNames()
+        vpns = SystemConfig.connectedVPNs()
+        vpnNames = vpns.map(\.name)
         changed()
     }
 

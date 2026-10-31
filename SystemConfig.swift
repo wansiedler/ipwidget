@@ -40,11 +40,12 @@ enum SystemConfig {
         return nil
     }
 
-    /// User-visible names of VPN / IPSec / PPP services that currently have an IPv4 state (= connected).
-    static func connectedVPNNames() -> [String] {
+    /// Connected VPN / IPSec / PPP services: user-visible name and the utun/ppp interface they own.
+    /// Tunnels raised without a service record (e.g. Amnezia/AWG) are not listed here.
+    static func connectedVPNs() -> [(name: String, interface: String?)] {
         guard let s = store(),
               let keys = SCDynamicStoreCopyKeyList(s, "State:/Network/Service/[^/]+/IPv4" as CFString) as? [String] else { return [] }
-        var names: [String] = []
+        var out: [(name: String, interface: String?)] = []
         for key in keys {
             let parts = key.split(separator: "/")          // State:, Network, Service, <id>, IPv4
             guard parts.count >= 5 else { continue }
@@ -52,8 +53,11 @@ enum SystemConfig {
             guard let iface = dict(s, "Setup:/Network/Service/\(id)/Interface"),
                   let type = iface["Type"] as? String, ["VPN", "IPSec", "PPP"].contains(type) else { continue }
             let setup = dict(s, "Setup:/Network/Service/\(id)")
-            names.append(setup?["UserDefinedName"] as? String ?? type)
+            let state = dict(s, key)
+            out.append((setup?["UserDefinedName"] as? String ?? type, state?["InterfaceName"] as? String))
         }
-        return names.sorted()
+        return out.sorted { $0.name < $1.name }
     }
+
+    static func connectedVPNNames() -> [String] { connectedVPNs().map(\.name) }
 }

@@ -27,14 +27,14 @@ pinned to the IP geolocation. Sits at desktop-icon window level (below all app w
 | Size | compact (no map, 300 px) / normal (340, map 150) / large (420, map 220) |
 | Map click | opens the location in Apple Maps; drag anywhere (map included) moves the widget |
 | Reverse DNS | PTR hostname of the public IP next to the ISP |
-| Click to copy | every value (IP, place, ISP/host, IPv6, DNS resolver, local IP, latency) copies to the clipboard on click; label flashes green |
+| Click to copy | IP, place, ISP/host, IPv6 and latency copy their value; the DNS and local-network rows copy the whole line; label flashes green |
 
 ### Network monitor (v3)
 
 | | |
 |---|---|
 | DNS leak | `edns.ip-api.com` reports the resolver that answered our lookup. With VPN on it is a **leak** when the system DNS (primary service, via SCDynamicStore) points at the LAN router or the resolver belongs to the remembered home ISP; a private tunnel resolver (10.x etc.), a public resolver (Cloudflare/Google/Quad9/…) or the exit ISP's resolver is fine. Row shows org, country and resolver IP, tooltip explains the verdict, click copies the whole line |
-| VPN detection | instant: default route via `utun*/ipsec*/ppp*` → VPN badge without waiting for the IP fetch; connected VPN names from `scutil --nc list` |
+| VPN detection | instant: default route via `utun*/ipsec*/ppp*` → VPN badge without waiting for the IP fetch; the name of the VPN service that owns the active tunnel (SCDynamicStore) is shown in the local row, other connected VPNs in its tooltip; tunnels without a service record (Amnezia/AWG) show just the interface |
 | Throughput | ↓/↑ rate from the active interface byte counters (1 s sampling, 32-bit wrap handled) + 60 s sparkline |
 | Status stripe | 3 px bar on top: green ok · yellow IP changed < 60 s · red offline / DNS leak / latency > 150 ms |
 | Hotkey ⌃⌥I | floats the widget above all windows for 3 s and copies the IP (Carbon hotkey, no Accessibility permission) |

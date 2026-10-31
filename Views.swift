@@ -238,7 +238,7 @@ final class WidgetWindow {
         placeLabel.copyValue = { [weak self] in self?.model.info?.place }
         ipv6Label.copyValue = { [weak self] in self?.model.ipv6 }
         // dnsLabel copies its whole line (resolver, country, IP)
-        localLabel.copyValue = { [weak self] in self?.model.local?.ipv4 }
+        // localLabel copies its whole line
         pingLabel.copyValue = { [weak self] in self?.model.pingDetails }
         for l in [ipLabel, placeLabel, ispLabel, ipv6Label, dnsLabel, speedLabel, localLabel] { l.toolTip = "Клик — скопировать" }
 
@@ -420,6 +420,8 @@ final class WidgetWindow {
         spark.isHidden = m.speedTestText != nil || m.speedTestRunning
 
         localLabel.stringValue = m.localText
+        let others = m.otherVPNNames
+        localLabel.toolTip = (others.isEmpty ? "" : "Также подключены: " + others.joined(separator: ", ") + "\n") + "Клик — скопировать строку"
         pingLabel.stringValue = m.pingText
         pingLabel.toolTip = m.pingDetails.isEmpty ? nil : m.pingDetails
         if let w = m.worstPing {

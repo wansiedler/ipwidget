@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Build IPWidget.app, install to ~/Applications, (re)load launchd agent.
+# Build IPWidget.app, install to /Applications (or ~/Applications), (re)load launchd agent.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -47,7 +47,7 @@ pkill -x "$APP_NAME" 2>/dev/null || true
 mkdir -p "$INSTALL_DIR" "$HOME/Library/LaunchAgents" "$HOME/Library/Logs/IPWidget"
 rm -rf "${INSTALL_DIR:?}/${APP_NAME:?}.app"
 cp -R "$APP" "$INSTALL_DIR/"
-sed "s|__APP_PATH__|$INSTALL_DIR/$APP_NAME.app|g" "$LABEL.plist" > "$AGENT"
+sed -e "s|__APP_PATH__|$INSTALL_DIR/$APP_NAME.app|g" -e "s|__HOME__|$HOME|g" "$LABEL.plist" > "$AGENT"
 # Keep a single LaunchServices registration for the bundle id: Notification Center
 # resolves the app icon by bundle id and may pick a stale copy otherwise.
 LSREG=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister

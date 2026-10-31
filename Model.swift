@@ -401,7 +401,7 @@ final class WidgetModel {
     var ispText: String {
         var parts: [String] = []
         if Settings.flag("showISP"), let isp = info?.isp, !isp.isEmpty { parts.append(isp) }
-        if Settings.flag("showHost"), let host { parts.append(host) }
+        if Settings.flag("showHost"), let host, !Settings.maskIP { parts.append(host) }   // PTR names embed the IP
         return parts.joined(separator: " · ")
     }
 
